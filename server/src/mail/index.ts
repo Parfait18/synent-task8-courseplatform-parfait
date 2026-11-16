@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { env } from '../config/env.js';
+import { env, isProduction } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 import type { MailMessage, Mailer } from './mailer.js';
 import { OutboxMailer } from './outbox.mailer.js';
@@ -12,7 +12,7 @@ function createMailer(): Mailer {
   if (env.MAIL_TRANSPORT === 'smtp') {
     return new SmtpMailer({ host: env.SMTP_HOST, port: env.SMTP_PORT, secure: env.SMTP_SECURE, user: env.SMTP_USER, pass: env.SMTP_PASS, from: env.MAIL_FROM });
   }
-  return new OutboxMailer(path.join(serverRoot, '.mail-outbox'));
+  return new OutboxMailer(path.join(serverRoot, '.mail-outbox'), !isProduction);
 }
 
 let mailer: Mailer = createMailer();

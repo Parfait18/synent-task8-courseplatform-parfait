@@ -51,6 +51,13 @@ const envSchema = z
         message: 'PAYMENT_PROVIDER=razorpay requires RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET',
       });
     }
+    if (env.NODE_ENV === 'production' && env.MAIL_TRANSPORT === 'outbox') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['MAIL_TRANSPORT'],
+        message: 'The outbox mail transport writes secret links to disk and logs: use MAIL_TRANSPORT=smtp in production',
+      });
+    }
     if (env.NODE_ENV === 'production' && env.MAIL_TRANSPORT === 'smtp' && !env.SMTP_HOST) {
       ctx.addIssue({ code: 'custom', path: ['SMTP_HOST'], message: 'SMTP_HOST is required for SMTP mail' });
     }
@@ -61,8 +68,13 @@ const envSchema = z
 
 export type Env = z.infer<typeof envSchema>;
 
+/** Exported so the startup rules can be unit tested without touching process.env. */
+export function parseEnv(source: Record<string, string | undefined>) {
+  return envSchema.safeParse(source);
+}
+
 function loadEnv(): Env {
-  const parsed = envSchema.safeParse(process.env);
+  const parsed = parseEnv(process.env);
   if (!parsed.success) {
     const details = parsed.error.issues.map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`).join('\n');
     throw new Error(`Invalid environment configuration:\n${details}`);
