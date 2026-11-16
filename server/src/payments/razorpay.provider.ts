@@ -35,6 +35,11 @@ export class RazorpayProvider implements PaymentProvider {
     return { paymentId: payment.id, orderId: payment.order_id, amount: Number(payment.amount), status: payment.status as ProviderPayment['status'] };
   }
 
+  async capturePayment(paymentId: string, amount: number): Promise<ProviderPayment> {
+    const payment = await this.client.payments.capture(paymentId, amount, 'INR');
+    return { paymentId: payment.id, orderId: String(payment.order_id), amount: Number(payment.amount), status: payment.status as ProviderPayment['status'] };
+  }
+
   verifyWebhookSignature(rawBody: Buffer, signature: string): boolean {
     if (!this.options.webhookSecret) return false;
     return safeEqualHex(hmacSha256Hex(rawBody.toString('utf8'), this.options.webhookSecret), signature);

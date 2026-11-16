@@ -23,13 +23,13 @@ export class MockPaymentProvider implements PaymentProvider {
 
   /**
    * Plays the role of the Razorpay Checkout popup: "captures" a payment for the order and returns
-   * the signed callback the browser would receive. `amount` defaults to the order amount and only
-   * exists so tests can simulate a payment whose amount differs from the order.
+   * the signed callback the browser would receive. The options only exist so tests can simulate
+   * a payment whose amount differs from the order, or one that is authorized but not captured.
    */
-  simulatePayment(orderId: string, amount?: number): SignedCallback {
+  simulatePayment(orderId: string, options: { amount?: number; status?: ProviderPayment['status'] } = {}): SignedCallback {
     const paymentId = `mock_pay_${randomBytes(8).toString('hex')}`;
     const orderAmount = this.orders.get(orderId);
-    this.payments.set(paymentId, { paymentId, orderId, amount: amount ?? orderAmount ?? 0, status: 'captured' });
+    this.payments.set(paymentId, { paymentId, orderId, amount: options.amount ?? orderAmount ?? 0, status: options.status ?? 'captured' });
     return { orderId, paymentId, signature: expectedCheckoutSignature(orderId, paymentId, this.secret) };
   }
 
@@ -39,6 +39,13 @@ export class MockPaymentProvider implements PaymentProvider {
 
   async fetchPayment(paymentId: string): Promise<ProviderPayment | null> {
     return this.payments.get(paymentId) ?? null;
+  }
+
+  async capturePayment(paymentId: string, amount: number): Promise<ProviderPayment> {
+    const payment = this.payments.get(paymentId);
+    if (!payment) throw new Error('Unknown mock payment');
+    if (payment.status === 'authorized' && payment.amount === amount) payment.status = 'captured';
+    return { ...payment };
   }
 
   verifyWebhookSignature(): boolean {

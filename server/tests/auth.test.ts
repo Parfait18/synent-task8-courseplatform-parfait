@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TokenModel } from '../src/models/token.model.js';
 import { UserModel } from '../src/models/user.model.js';
-import { api, createUser, flushBackgroundTasks, login, mailer, PASSWORD, tokenFromLastEmail, useTestDatabase } from './helpers.js';
+import { api, createUser, refreshSetCookie, flushBackgroundTasks, login, mailer, PASSWORD, tokenFromLastEmail, useTestDatabase } from './helpers.js';
 
 useTestDatabase();
 
@@ -27,7 +27,7 @@ describe('auth flow', () => {
     expect(me.body.user.email).toBe(email);
 
     const refreshed = await api().post('/api/v1/auth/refresh').set('Cookie', session.cookie).expect(200);
-    const rotatedCookie = ([] as string[]).concat(refreshed.headers['set-cookie']).find((value) => value.startsWith('kalam_rt='))!.split(';')[0]!;
+    const rotatedCookie = refreshSetCookie(refreshed).split(';')[0]!;
     expect(rotatedCookie).not.toBe(session.cookie);
     expect(refreshed.body.accessToken).toBeTruthy();
 
@@ -38,7 +38,7 @@ describe('auth flow', () => {
   it('should store only hashes of refresh tokens and set a hardened cookie', async () => {
     const user = await createUser({ email: 'hash@example.com' });
     const response = await api().post('/api/v1/auth/login').send({ email: user.email, password: PASSWORD }).expect(200);
-    const cookie = ([] as string[]).concat(response.headers['set-cookie']).find((value) => value.startsWith('kalam_rt='))!;
+    const cookie = refreshSetCookie(response);
     expect(cookie).toMatch(/HttpOnly/i);
     expect(cookie).toMatch(/SameSite=Lax/i);
     expect(cookie).toMatch(/Path=\/api\/v1\/auth/);
@@ -51,7 +51,7 @@ describe('auth flow', () => {
     const user = await createUser({ email: 'reuse@example.com' });
     const session = await login(user.email);
     const first = await api().post('/api/v1/auth/refresh').set('Cookie', session.cookie).expect(200);
-    const newCookie = ([] as string[]).concat(first.headers['set-cookie']).find((value) => value.startsWith('kalam_rt='))!.split(';')[0]!;
+    const newCookie = refreshSetCookie(first).split(';')[0]!;
 
     const reuse = await api().post('/api/v1/auth/refresh').set('Cookie', session.cookie).expect(401);
     expect(reuse.body.error.code).toBe('REFRESH_TOKEN_REUSED');

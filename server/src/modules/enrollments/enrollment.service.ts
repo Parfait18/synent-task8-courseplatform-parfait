@@ -50,11 +50,20 @@ async function enroll(userId: Types.ObjectId | string, course: Pick<Course, '_id
 }
 
 /**
- * Marks an order paid and enrols its owner. The created → paid transition is atomic, and the
- * enrolment is an upsert on a unique index: replays and concurrent calls are harmless.
+ * Marks an order paid and enrols its owner, atomically and idempotently:
+ * - the created → paid transition is a conditional update, so only one caller performs it;
+ * - a caller that lost the race proceeds only if the order was paid with the same payment id
+ *   (a replay), and is rejected if it carries a different payment id;
+ * - the enrolment is an upsert on the unique (user, course) index.
  */
 async function completePayment(payment: { _id: Types.ObjectId; user: Types.ObjectId; course: Types.ObjectId; amount: number }, paymentId: string) {
-  await paymentRepository.markPaid(payment._id, paymentId);
+  const transitioned = await paymentRepository.markPaid(payment._id, paymentId);
+  if (!transitioned) {
+    const current = await paymentRepository.findById(payment._id);
+    if (current?.status !== 'paid' || current.paymentId !== paymentId) {
+      throw AppError.conflict('PAYMENT_ALREADY_PROCESSED', 'This order was already settled with another payment.');
+    }
+  }
   const course = await courseRepository.findById(payment.course);
   if (!course) throw AppError.notFound('COURSE_NOT_FOUND', 'The course of this payment no longer exists.');
   await enroll(payment.user, course, payment);
@@ -109,18 +118,27 @@ export const enrollmentService = {
       throw AppError.badRequest('PAYMENT_SIGNATURE_INVALID', 'The payment could not be verified. You have not been charged twice; contact support if money left your account.');
     }
     if (payment.status === 'paid') {
-      // Replay of a verified callback: return the existing enrolment.
-      return { courseId: payment.course.toString(), alreadyProcessed: true };
+      // Replay of the same verified callback: idempotent, returns the existing enrolment.
+      if (payment.paymentId === callback.paymentId) return { courseId: payment.course.toString(), alreadyProcessed: true };
+      throw AppError.conflict('PAYMENT_ALREADY_PROCESSED', 'This order was already settled with another payment.');
     }
+    if (payment.status !== 'created') throw AppError.badRequest('PAYMENT_NOT_COMPLETED', 'This order can no longer be paid. Start a new checkout.');
+
     // The signature proves the callback came from the provider; the provider's own record proves
     // the payment matches this order and its stored amount.
-    const providerPayment = await provider.fetchPayment(callback.paymentId);
-    if (!providerPayment || providerPayment.orderId !== payment.orderId || providerPayment.amount !== payment.amount) {
+    let providerPayment = await provider.fetchPayment(callback.paymentId);
+    const matchesOrder = (p: typeof providerPayment) => Boolean(p && p.orderId === payment.orderId && p.amount === payment.amount);
+    if (!matchesOrder(providerPayment)) {
       await paymentRepository.markFailed(payment._id);
       throw AppError.badRequest('PAYMENT_AMOUNT_MISMATCH', 'The payment does not match the order amount.');
     }
-    if (providerPayment.status !== 'captured' && providerPayment.status !== 'authorized') {
-      throw AppError.badRequest('PAYMENT_NOT_COMPLETED', 'The payment is not completed yet.');
+    // Money is only moved once the payment is captured. An authorized payment is captured here,
+    // for the amount stored in the database, before any enrolment.
+    if (providerPayment!.status === 'authorized') {
+      providerPayment = await provider.capturePayment(callback.paymentId, payment.amount);
+    }
+    if (!matchesOrder(providerPayment) || providerPayment!.status !== 'captured') {
+      throw AppError.badRequest('PAYMENT_NOT_CAPTURED', 'The payment was not captured. You have not been enrolled.');
     }
     const course = await completePayment(payment, callback.paymentId);
     return { courseId: course._id.toString(), alreadyProcessed: false };
@@ -141,7 +159,16 @@ export const enrollmentService = {
       logger.warn('Webhook for an unknown order or a different amount', { orderId: entity.order_id });
       return { handled: false };
     }
-    await completePayment(payment, entity.id);
+    try {
+      await completePayment(payment, entity.id);
+    } catch (error) {
+      // Already settled with another payment id: acknowledge so Razorpay stops retrying, but log it.
+      if (error instanceof AppError && error.code === 'PAYMENT_ALREADY_PROCESSED') {
+        logger.warn('Webhook for an order settled with another payment', { orderId: entity.order_id });
+        return { handled: false };
+      }
+      throw error;
+    }
     return { handled: true };
   },
 

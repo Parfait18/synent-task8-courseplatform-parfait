@@ -46,11 +46,19 @@ export async function createUser(overrides: { email?: string; role?: UserRole; v
   });
 }
 
+/** Reads the `kalam_rt` cookie (full Set-Cookie line) from a response. */
+export function refreshSetCookie(response: { headers: Record<string, unknown> }): string {
+  const header = response.headers['set-cookie'];
+  const values = Array.isArray(header) ? (header as string[]) : typeof header === 'string' ? [header] : [];
+  const cookie = values.find((value) => value.startsWith('kalam_rt='));
+  if (!cookie) throw new Error('No refresh cookie in the response');
+  return cookie;
+}
+
 /** Logs in through the API and returns the access token and the refresh cookie. */
 export async function login(email: string, password = PASSWORD) {
   const response = await api().post('/api/v1/auth/login').send({ email, password }).expect(200);
-  const cookie = ([] as string[]).concat(response.headers['set-cookie'] ?? []).find((value) => value.startsWith('kalam_rt='));
-  return { accessToken: response.body.accessToken as string, cookie: cookie!.split(';')[0]!, body: response.body };
+  return { accessToken: response.body.accessToken as string, cookie: refreshSetCookie(response).split(';')[0]!, body: response.body };
 }
 
 export async function createCourse(overrides: Partial<{ title: string; price: number; isPublished: boolean; slug: string }> = {}) {

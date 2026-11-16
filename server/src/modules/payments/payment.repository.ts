@@ -9,6 +9,10 @@ export const paymentRepository = {
     return PaymentModel.create({ ...data, currency: 'INR', status: 'created' });
   },
 
+  findById(id: Id) {
+    return PaymentModel.findById(id).lean();
+  },
+
   findByOrderId(orderId: string) {
     return PaymentModel.findOne({ orderId }).lean();
   },

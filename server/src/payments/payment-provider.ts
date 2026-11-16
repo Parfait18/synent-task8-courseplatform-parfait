@@ -32,6 +32,8 @@ export interface PaymentProvider {
   verifyPaymentSignature(callback: SignedCallback): boolean;
   /** Reads the payment from the provider to confirm its order, amount and status. */
   fetchPayment(paymentId: string): Promise<ProviderPayment | null>;
+  /** Captures an authorized payment for exactly `amount` paise (taken from the database). */
+  capturePayment(paymentId: string, amount: number): Promise<ProviderPayment>;
   /** Webhook signature on the raw body. Returns false when webhooks are not configured. */
   verifyWebhookSignature(rawBody: Buffer, signature: string): boolean;
 }
