@@ -5,7 +5,8 @@ import { AppError } from '../../lib/app-error.js';
 import { generateOpaqueToken, hashToken } from '../../lib/crypto.js';
 import { signAccessToken } from '../../lib/jwt.js';
 import { sendMailSafely } from '../../mail/index.js';
-import { passwordResetEmail, verificationEmail } from '../../mail/templates.js';
+import { accountExistsEmail, passwordResetEmail, verificationEmail } from '../../mail/templates.js';
+import { runInBackground } from '../../lib/background.js';
 import { presentUser, type PublicUser } from '../users/user.presenter.js';
 import { userRepository } from '../users/user.repository.js';
 import { tokenRepository } from './token.repository.js';
@@ -52,14 +53,29 @@ async function sendVerificationEmail(user: { _id: unknown; name: string; email: 
 }
 
 export const authService = {
-  async register(input: RegisterInput): Promise<Session> {
-    if (await userRepository.existsByEmail(input.email)) {
-      throw AppError.conflict('EMAIL_TAKEN', 'An account already uses this email. Sign in or reset your password.');
-    }
-    // Public registration always creates a learner: the role is never read from the request.
-    const user = await userRepository.create({ name: input.name, email: input.email, passwordHash: await hashPassword(input.password), role: 'user' });
-    await sendVerificationEmail(user);
-    return issueSession(user);
+  /**
+   * Answers the same way whether the email is new or already registered: the work (hashing,
+   * account creation, emails) runs after the response, so neither the body nor the timing
+   * reveals which addresses have accounts. An existing owner receives an informative email.
+   */
+  register(input: RegisterInput): void {
+    runInBackground('register', async () => {
+      const existing = await userRepository.findByEmail(input.email);
+      if (existing) {
+        await sendMailSafely(accountExistsEmail(existing.email, existing.name, `${env.CLIENT_URL}/forgot-password`));
+        return;
+      }
+      // Public registration always creates a learner: the role is never read from the request.
+      const passwordHash = await hashPassword(input.password);
+      try {
+        const user = await userRepository.create({ name: input.name, email: input.email, passwordHash, role: 'user' });
+        await sendVerificationEmail(user);
+      } catch (error) {
+        // Two simultaneous registrations for the same email: the unique index keeps one account.
+        if ((error as { code?: number }).code === 11000) return;
+        throw error;
+      }
+    });
   },
 
   async login(input: LoginInput): Promise<Session> {
@@ -112,15 +128,20 @@ export const authService = {
     await sendVerificationEmail(user);
   },
 
-  /** Always resolves the same way, so the response never reveals whether the email exists. */
-  async requestPasswordReset(email: string): Promise<void> {
-    const user = await userRepository.findByEmail(email);
-    if (!user) return;
-    const token = generateOpaqueToken();
-    await tokenRepository.deleteForUser(user._id, 'password_reset');
-    await tokenRepository.create({ user: user._id, type: 'password_reset', tokenHash: hashToken(token), expiresAt: new Date(Date.now() + RESET_TTL_MS) });
-    const url = `${env.CLIENT_URL}/reset-password?token=${encodeURIComponent(token)}`;
-    await sendMailSafely(passwordResetEmail(user.email, user.name, url));
+  /**
+   * Returns immediately; the lookup, token creation and email run after the response, so the
+   * response time is the same whether or not the email has an account.
+   */
+  requestPasswordReset(email: string): void {
+    runInBackground('password reset request', async () => {
+      const user = await userRepository.findByEmail(email);
+      if (!user) return;
+      const token = generateOpaqueToken();
+      await tokenRepository.deleteForUser(user._id, 'password_reset');
+      await tokenRepository.create({ user: user._id, type: 'password_reset', tokenHash: hashToken(token), expiresAt: new Date(Date.now() + RESET_TTL_MS) });
+      const url = `${env.CLIENT_URL}/reset-password?token=${encodeURIComponent(token)}`;
+      await sendMailSafely(passwordResetEmail(user.email, user.name, url));
+    });
   },
 
   async resetPassword(token: string, password: string): Promise<void> {

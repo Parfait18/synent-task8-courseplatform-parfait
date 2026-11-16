@@ -27,7 +27,8 @@ const readRefreshCookie = (req: Request): string | undefined => {
 
 export const authController = {
   async register(req: Request, res: Response) {
-    sendSession(res, await authService.register(input.body<RegisterInput>(req)), 201);
+    authService.register(input.body<RegisterInput>(req));
+    res.status(202).json({ message: 'Check your inbox: we sent you a link to confirm your email, then you can sign in.' });
   },
 
   async login(req: Request, res: Response) {
@@ -61,7 +62,7 @@ export const authController = {
   },
 
   async forgotPassword(req: Request, res: Response) {
-    await authService.requestPasswordReset(input.body<{ email: string }>(req).email);
+    authService.requestPasswordReset(input.body<{ email: string }>(req).email);
     res.status(202).json({ message: 'If an account uses this email, a reset link is on its way.' });
   },
 

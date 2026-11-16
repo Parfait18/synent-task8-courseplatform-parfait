@@ -46,3 +46,14 @@ export function enrollmentEmail(to: string, name: string, courseTitle: string, a
     links: [url],
   };
 }
+
+/** Sent when someone registers with an address that already has an account (no enumeration in the API). */
+export function accountExistsEmail(to: string, name: string, url: string): MailMessage {
+  return {
+    to,
+    subject: 'You already have a Kalam account',
+    html: layout('You already have an account', [`Hi ${name}, someone tried to create a Kalam account with this email. You already have one, so nothing changed.`, 'If you forgot your password, you can choose a new one.'], { label: 'Reset my password', url }, 'If it was not you, ignore this email.'),
+    text: `Hi ${name},\n\nSomeone tried to create a Kalam account with this email. You already have one.\nForgot your password? ${url}`,
+    links: [url],
+  };
+}
