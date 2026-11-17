@@ -32,13 +32,13 @@ The IDs map to the six sections of the brief.
 
 | ID | Requirement | Where |
 |---|---|---|
-| A1 | A visitor registers with name, email and password. The password needs 10+ characters with a letter and a digit. | `server/src/modules/auth`, `client/src/features/auth/RegisterPage.tsx` |
-| A2 | Registration sends a verification email with a single-use link valid 24 hours. | `auth.service.ts`, `mail/templates.ts` |
-| A3 | The user verifies the email by opening the link. A verified address is required to enrol. A new link can be requested. | `VerifyEmailPage.tsx`, `POST /auth/verify-email`, `POST /auth/resend-verification` |
+| A1 | A visitor registers with name, email and password. The password needs 10 to 72 characters with a letter and a digit. The answer is the same generic `202` whether or not the email already has an account; the work runs after the response so timing reveals nothing either. | `server/src/modules/auth`, `client/src/features/auth/RegisterPage.tsx` |
+| A2 | Registration sends a verification email with a single-use link valid 24 hours. If the email already has an account, its owner receives an "account exists" email instead and nothing changes. | `auth.service.ts`, `mail/templates.ts` |
+| A3 | The user verifies the email by opening the link, then signs in. A verified address is required to enrol. A new link can be requested from the banner shown to unverified users. | `VerifyEmailPage.tsx`, `POST /auth/verify-email`, `POST /auth/resend-verification` |
 | A4 | Login returns a short-lived access JWT (15 min) and sets a refresh token cookie (7 days). The error message never reveals whether an email exists. | `POST /auth/login` |
 | A5 | The client refreshes the access token silently. Each refresh rotates the refresh token. Reusing an old refresh token revokes the whole session family. | `POST /auth/refresh`, `client/src/lib/api.ts` |
 | A6 | Logout revokes the refresh token server-side and clears the cookie. | `POST /auth/logout` |
-| A7 | Forgot password sends a single-use reset link valid 30 minutes. The response is identical whether the email exists or not. Resetting revokes every session. | `POST /auth/forgot-password`, `POST /auth/reset-password` |
+| A7 | Forgot password sends a single-use reset link valid 30 minutes. The response is sent before any lookup, so its body and timing are identical whether the email exists or not. Resetting revokes every session. | `POST /auth/forgot-password`, `POST /auth/reset-password` |
 | A8 | Roles are `user` and `admin`. Every `/api/v1/admin/*` route requires an admin. The first admin is created by the seed script, never through registration. | `middlewares/authenticate.ts`, `middlewares/require-role.ts`, `scripts/seed.ts` |
 
 ### 3.2 User dashboard and catalogue (brief section 2)
@@ -56,8 +56,8 @@ The IDs map to the six sections of the brief.
 |---|---|---|
 | E1 | "Enroll now" on a paid course creates a payment order server-side. The amount is read from the database, never from the client. | `POST /courses/:id/checkout` |
 | E2 | The client opens Razorpay Checkout (or the local test payment dialog). | `CheckoutPage.tsx`, `useRazorpayCheckout.ts` |
-| E3 | The server verifies the Razorpay signature (HMAC-SHA256 of `order_id|payment_id`, constant-time comparison) before it records the payment and creates the enrolment. | `payments/razorpay.provider.ts`, `POST /payments/verify` |
-| E4 | Enrolment is idempotent: a second checkout on an owned course is refused, a replayed verification returns the existing enrolment, and a unique index on `(user, course)` backs both. | `enrollments.service.ts` |
+| E3 | The server verifies the Razorpay signature (HMAC-SHA256 of `order_id|payment_id`, constant-time comparison), then reads the payment from Razorpay and checks its order and amount. Only a `captured` payment enrols; an `authorized` one is captured first for the amount stored in the database. | `payments/razorpay.provider.ts`, `POST /payments/verify` |
+| E4 | Enrolment is idempotent: a second checkout on an owned course is refused; the order moves from `created` to `paid` with one conditional update; a replay of the same callback returns the existing enrolment, a different payment id on a paid order is rejected; a unique index on `(user, course)` backs it all. | `enrollment.service.ts` |
 | E5 | Free courses (price 0) enrol directly. | `POST /courses/:id/checkout` |
 | E6 | After success the course appears in the dashboard. | `DashboardPage.tsx` |
 | E7 | An optional Razorpay webhook (`payment.captured`) completes the same flow if the browser closes before verification. Its signature is checked against the raw body. | `POST /payments/webhooks/razorpay` |
@@ -88,7 +88,7 @@ The IDs map to the six sections of the brief.
 |---|---|---|
 | D1 | Enrolments and payments are stored in MongoDB (`enrollments`, `payments`). | `models/` |
 | D2 | An email is sent on registration (verification link) and on enrolment (course link). | `mail/` |
-| D3 | In development, emails are written to `server/.mail-outbox/` as HTML files and their links are printed to the server log. In production they go through SMTP. | `mail/outbox.transport.ts`, `mail/mailer.ts` |
+| D3 | In development, emails are written to `server/.mail-outbox/` as HTML files and their links are printed to the server log. The outbox transport is refused when `NODE_ENV=production`, and tokens are redacted from logged links outside development. In production emails go through SMTP. | `mail/outbox.mailer.ts`, `mail/index.ts` |
 
 **Out of scope.** Refunds, coupons, certificates, instructor accounts, video hosting (lessons
 point at public video URLs) and multi-currency (INR only).
@@ -195,7 +195,7 @@ Base URL `/api/v1`. Interactive documentation (Swagger UI) at `/api/v1/docs`, ra
 | Method | Path | Access | Purpose |
 |---|---|---|---|
 | GET | `/health` | public | Liveness and database status |
-| POST | `/auth/register` | public, rate limited | Create an account, send verification email |
+| POST | `/auth/register` | public, rate limited | Create an account and send the verification email (generic `202`) |
 | POST | `/auth/login` | public, rate limited | Access token + refresh cookie |
 | POST | `/auth/refresh` | refresh cookie | Rotate refresh token, new access token |
 | POST | `/auth/logout` | refresh cookie | Revoke the session |
@@ -233,13 +233,14 @@ Base URL `/api/v1`. Interactive documentation (Swagger UI) at `/api/v1/docs`, ra
 ## 7. Authentication and token lifecycle
 
 ```
-register ─▶ user (unverified) + email_verification token (24 h) ─▶ email with /verify-email?token=…
+register ─▶ 202 at once; then user (unverified) + email_verification token (24 h) ─▶ email with /verify-email?token=…
+            (existing email: "account exists" email instead, no change)
 login    ─▶ access JWT (15 min, in memory on the client)
             + refresh token (7 days, httpOnly cookie, path /api/v1/auth, SameSite=Lax, Secure in prod)
 refresh  ─▶ old refresh token marked used, new one issued in the same family
             reuse of a used token ─▶ every token of the family revoked ─▶ 401
 logout   ─▶ refresh token revoked, cookie cleared
-forgot   ─▶ password_reset token (30 min) ─▶ email with /reset-password?token=…
+forgot   ─▶ 202 at once; then, if the account exists, password_reset token (30 min) ─▶ email with /reset-password?token=…
 reset    ─▶ new password, token consumed, every refresh token of the user revoked
 ```
 
@@ -250,6 +251,10 @@ reset    ─▶ new password, token consumed, every refresh token of the user re
 - The client never stores the access token in `localStorage`. On page load it calls `/auth/refresh`
   to restore the session from the cookie. On a 401 it refreshes once and replays the request.
 - Login runs bcrypt even when the email is unknown, so response time does not reveal accounts.
+  Registration and forgot-password answer before doing any account-dependent work
+  (`lib/background.ts`), with errors logged, never swallowed.
+- The client keeps a non-secret `kalam:has-session` flag in `localStorage` only to skip the
+  refresh call for anonymous visitors; it never stores a token.
 
 ## 8. Payment sequence
 
@@ -265,7 +270,12 @@ Client                         Server                           Razorpay
   │◀──── razorpay_payment_id, razorpay_order_id, razorpay_signature │
   │ POST /payments/verify ──────▶│ HMAC-SHA256(order|payment, secret)
   │                              │ timingSafeEqual(signature)       │
-  │                              │ Payment → paid, Enrollment upsert│
+  │                              │ payments.fetch(payment_id) ─────▶│
+  │                              │ same order? same amount?         │
+  │                              │ authorized → capture(amount) ───▶│
+  │                              │ captured only                    │
+  │                              │ created → paid (conditional)     │
+  │                              │ Enrollment upsert                │
   │                              │ enrolment email                  │
   │◀──────── { enrollment } ─────│                                  │
 ```
@@ -276,10 +286,13 @@ Client                         Server                           Razorpay
 - **Selection.** `PAYMENT_PROVIDER=razorpay|mock`. The server refuses to start with `mock` when
   `NODE_ENV=production`, and refuses `razorpay` without keys.
 - **Integrity.** The amount comes from the course document. Verification checks that the order
-  belongs to the signed-in user and that the stored amount still matches. A tampered or replayed
-  signature is rejected with `PAYMENT_SIGNATURE_INVALID`.
-- **Idempotency.** Verifying an already paid order returns the existing enrolment. The enrolment
-  is an upsert on the unique `(user, course)` index, so concurrent verifications cannot create two.
+  belongs to the signed-in user, that the signature is valid (`PAYMENT_SIGNATURE_INVALID`), that
+  the provider's payment belongs to the same order with the same amount (`PAYMENT_AMOUNT_MISMATCH`,
+  order marked `failed`) and that it is captured (`PAYMENT_NOT_CAPTURED`).
+- **Idempotency.** The `created → paid` transition is a conditional `findOneAndUpdate`, so only one
+  request performs it. Replaying the same callback returns the existing enrolment; another payment
+  id on a paid order is rejected (`PAYMENT_ALREADY_PROCESSED`). The enrolment is an upsert on the
+  unique `(user, course)` index, so concurrent verifications cannot create two.
 
 ## 9. Security measures
 
@@ -287,15 +300,15 @@ Client                         Server                           Razorpay
 |---|---|
 | Password theft | bcrypt (cost 12), password policy, reset revokes all sessions |
 | Token theft | Access token in memory only, refresh token httpOnly + SameSite + Secure, rotation with reuse detection, hashed storage |
-| Account enumeration | Same login error and same forgot-password response for unknown emails, constant work on login |
+| Account enumeration | Same login error for unknown emails with constant bcrypt work; registration and forgot-password answer a generic `202` before any lookup, the work runs after the response |
 | Brute force | `express-rate-limit` on login, register, forgot and reset (per IP) |
 | CSRF on cookie routes | The refresh cookie is scoped to `/api/v1/auth`, `SameSite=Lax`, and CORS only accepts the client origin with credentials |
 | Privilege escalation | `role` cannot be set through any public route; admin routes check the role from the database |
-| Payment fraud | Server-side amount, HMAC signature with constant-time comparison, ownership check, webhook signature on raw body |
-| Injection | zod validation on every input, regex search input escaped, Mongoose `sanitizeFilter` |
+| Payment fraud | Server-side amount, HMAC signature with constant-time comparison, ownership check, provider-side amount and capture check, atomic settlement, webhook signature on raw body, mock provider refused in production |
+| Injection | zod validation on every input (only parsed primitives reach queries, never raw request objects), regex search input escaped, `strictQuery`, video URLs limited to http(s) on server and client |
 | Information leak | Generic 500 messages in production, `passwordHash` never selected, lesson video URLs only for enrolled users or free previews |
 | Headers | `helmet` defaults, `x-powered-by` disabled, JSON body limit 100 kB |
-| Secrets | Environment variables only, validated at startup with zod; `.env` is git-ignored |
+| Secrets | Environment variables only, validated at startup with zod (the outbox mailer and the mock payment provider are refused in production); `.env` is git-ignored; email tokens redacted from production logs |
 
 ## 10. Design
 
@@ -317,7 +330,7 @@ surfaces, dense tables, small type, a sidebar.
 |---|---|---|
 | `ink` | `#1B2560` | Text, primary buttons, admin accent |
 | `paper` | `#F5F6FA` | Learner background |
-| `marigold` | `#F4A20C` | Main call to action, progress fill, focus ring |
+| `marigold` | `#F4A20C` | Main call to action (ink text on it), progress fill, focus halo |
 | `graphite` | `#4A5070` | Secondary text |
 | `leaf` | `#1D6B45` | Completed lessons, success |
 | `margin` | `#B4233A` | Errors, destructive actions |
@@ -356,7 +369,8 @@ Line length is capped at about 70 characters on reading pages.
 
 - Layouts work from 360 px. The catalogue grid goes from one to three columns; the player sidebar
   becomes a sheet on small screens; admin tables scroll horizontally inside their card.
-- Every interactive element has a visible marigold focus ring (`:focus-visible`).
+- Every interactive element has a visible focus style (`:focus-visible`): a 2 px ink outline
+  (13:1 on paper) with a marigold halo; on the dark footer the outline turns white.
 - Motion is limited to state changes (dialogs, sheets, progress bar) and is disabled under
   `prefers-reduced-motion`.
 - Forms use labels, `aria-invalid` and `aria-describedby` for errors; toasts are announced by sonner.
@@ -366,9 +380,10 @@ Line length is capped at about 70 characters on reading pages.
 
 | Layer | Tool | What is covered |
 |---|---|---|
-| Server integration | Vitest + supertest on the real Express app, MongoDB database `synent_courses_test` | Auth flow (register → verify → login → refresh rotation → reuse detection → logout), forgot/reset, RBAC (403 for users on admin routes), checkout and payment verification (valid, invalid, tampered amount, replay), enrolment idempotency, free enrolment, learning access and progress |
-| Server unit | Vitest | Progress computation, Razorpay signature verification, slug generation, video URL parsing |
-| Client | Vitest + Testing Library + jsdom | Video URL parsing, price formatting, progress bar, catalogue filters, login form validation, route guards |
+| Server integration | Vitest + supertest on the real Express app, MongoDB database `synent_courses_test` | Auth flow (register → verify → login → refresh rotation → reuse detection → logout), generic registration and forgot-password answers, reset, RBAC (401/403 on every admin route, demoted admin, forged token), checkout (server amount, order reuse, free course, unverified email), payment verification (valid, invalid signature, tampered callback, tampered amount, authorized-not-captured, capture for the database amount, replay, second payment id, concurrent verification, foreign order), catalogue filters, video URL hiding, learning access and progress, admin content management |
+| Server unit | Vitest | Progress computation, Razorpay signature, environment rules (outbox and mock refused in production), outbox token redaction |
+| Client | Vitest + Testing Library + jsdom | Video URL parsing, price and duration formatting, token refresh and replay (single-flight), route guards, login form validation, progress bar accessibility |
+| End to end | Puppeteer script run by hand against the dev servers | Full learner and admin journeys (see the README) |
 
 The test database is dropped before each run. A guard refuses to drop any database whose name does
 not end in `_test`.
