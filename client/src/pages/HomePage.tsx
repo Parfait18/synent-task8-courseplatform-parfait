@@ -82,7 +82,7 @@ export function HomePage() {
 
       <ContinueLearning />
 
-      <section aria-labelledby="subjects-heading" className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
+      <section aria-labelledby="subjects-heading" className="mx-auto mt-10 max-w-6xl px-4 sm:px-6">
         <h2 id="subjects-heading" className="text-[1.5625rem] font-bold">Subjects</h2>
         <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {subjects.map((subject) => (

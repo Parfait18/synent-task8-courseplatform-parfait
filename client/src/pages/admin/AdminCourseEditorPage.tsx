@@ -116,14 +116,16 @@ export function AdminCourseEditorPage() {
                       <li key={lesson.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
                         <span className="w-6 text-right text-muted-foreground tabular-nums">{lessonIndex + 1}</span>
                         <span className="min-w-40 flex-1 font-medium">{lesson.title}</span>
-                        {lesson.isFreePreview && <Badge variant="outline" className="rounded-sm">Preview</Badge>}
-                        <span className="text-xs text-muted-foreground">{parseVideoUrl(lesson.videoUrl).kind === 'youtube' ? 'YouTube' : 'Video file'}</span>
-                        <span className="w-16 text-right text-muted-foreground tabular-nums">{formatDuration(lesson.durationMinutes)}</span>
+                        <span className="ml-auto flex items-center gap-3">
+                          {lesson.isFreePreview && <Badge variant="outline" className="rounded-sm">Preview</Badge>}
+                          <span className="text-xs text-muted-foreground">{parseVideoUrl(lesson.videoUrl).kind === 'youtube' ? 'YouTube' : 'Video file'}</span>
+                          <span className="w-14 text-right text-muted-foreground tabular-nums">{formatDuration(lesson.durationMinutes)}</span>
                         <span className="flex">
                           <Button variant="ghost" size="icon-sm" aria-label={`Move ${lesson.title} up`} disabled={lessonIndex === 0 || reorderLessons.isPending} onClick={() => reorderLessons.mutate({ moduleId: module.id, ids: moved(lessonIds, lessonIndex, -1) })}><ArrowUp aria-hidden="true" /></Button>
                           <Button variant="ghost" size="icon-sm" aria-label={`Move ${lesson.title} down`} disabled={lessonIndex === module.lessons.length - 1 || reorderLessons.isPending} onClick={() => reorderLessons.mutate({ moduleId: module.id, ids: moved(lessonIds, lessonIndex, 1) })}><ArrowDown aria-hidden="true" /></Button>
                           <Button variant="ghost" size="icon-sm" aria-label={`Edit ${lesson.title}`} onClick={() => setLessonDialog({ moduleId: module.id, lessonId: lesson.id, defaults: { title: lesson.title, videoUrl: lesson.videoUrl, durationMinutes: lesson.durationMinutes, isFreePreview: lesson.isFreePreview } })}><Pencil aria-hidden="true" /></Button>
                           <Button variant="ghost" size="icon-sm" aria-label={`Delete ${lesson.title}`} onClick={() => setConfirm({ title: `Delete the lesson “${lesson.title}”?`, description: 'Learners lose access to it immediately. This cannot be undone.', action: () => deleteLesson.mutate({ moduleId: module.id, lessonId: lesson.id }) })}><Trash2 aria-hidden="true" /></Button>
+                        </span>
                         </span>
                       </li>
                     ))}
