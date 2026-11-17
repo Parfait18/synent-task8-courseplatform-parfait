@@ -1,0 +1,175 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/familjen-grotesk";
+@import "@fontsource-variable/atkinson-hyperlegible-next";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Kalam design tokens (see docs/SPECIFICATION.md, section 10).
+ * ink #1B2560, paper #F5F6FA, marigold #F4A20C, graphite #4A5070, leaf #1D6B45, margin #B4233A.
+ */
+:root {
+  --ink: #1b2560;
+  --paper: #f5f6fa;
+  --marigold: #f4a20c;
+  --marigold-soft: #fde7b8;
+  --graphite: #4a5070;
+  --leaf: #1d6b45;
+  --margin-red: #b4233a;
+  --line: #dadde9;
+
+  --cover-development: #2d3a8c;
+  --cover-design: #e9b949;
+  --cover-data: #0e6466;
+  --cover-business: #7a2e5e;
+  --cover-marketing: #9c3b22;
+  --cover-photography: #3d4a1f;
+
+  --radius: 0.625rem;
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: #ffffff;
+  --card-foreground: var(--ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: #ffffff;
+  --secondary: #e8eaf3;
+  --secondary-foreground: var(--ink);
+  --muted: #eceef5;
+  --muted-foreground: var(--graphite);
+  --accent: #e8eaf3;
+  --accent-foreground: var(--ink);
+  --destructive: var(--margin-red);
+  --border: var(--line);
+  --input: #c9cddd;
+  --ring: var(--ink);
+  --chart-1: var(--ink);
+  --chart-2: var(--marigold);
+  --chart-3: var(--leaf);
+  --chart-4: #0e6466;
+  --chart-5: #7a2e5e;
+  --sidebar: #f7f8fb;
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--ink);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8eaf3;
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--ink);
+}
+
+/* The admin panel is a work surface: white, tighter radius. */
+.admin-surface {
+  --background: #ffffff;
+  --radius: 0.4rem;
+}
+
+@theme inline {
+  --font-sans: "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Familjen Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-marigold: var(--marigold);
+  --color-marigold-soft: var(--marigold-soft);
+  --color-graphite: var(--graphite);
+  --color-leaf: var(--leaf);
+  --color-margin-red: var(--margin-red);
+  --color-line: var(--line);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+
+  /* Type scale (rem): 0.8125, 0.875, 1, 1.25, 1.5625, 2, 2.75 */
+  --text-display: 2.75rem;
+  --text-display--line-height: 1.08;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    line-height: 1.6;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  /* One visible focus style everywhere: ink outline with a marigold halo (3:1+ on every surface). */
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px color-mix(in oklab, var(--marigold) 55%, transparent);
+  }
+  .on-dark :focus-visible {
+    outline-color: #ffffff;
+  }
+  ::selection {
+    background: var(--marigold-soft);
+    color: var(--ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* The one orchestrated moment: the cover shelf on the home page settles into place on load. */
+@keyframes shelf-in {
+  from {
+    opacity: 0;
+    translate: 0 24px;
+  }
+}
+.shelf-cover {
+  animation: shelf-in 600ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
