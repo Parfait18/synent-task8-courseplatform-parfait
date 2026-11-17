@@ -142,6 +142,8 @@ export function LearnPage() {
           </Sheet>
         </div>
 
+        <ProgressMeter className="mb-4 lg:hidden" percent={data.progress.percent} label="Course progress" detail={`${data.progress.completedCount} of ${plural(data.progress.totalCount, 'lesson')}`} />
+
         {data.isPreview && (
           <p className="mb-4 rounded-lg bg-marigold-soft px-4 py-2.5 text-sm">Admin preview: you are not enrolled, so progress is not saved.</p>
         )}

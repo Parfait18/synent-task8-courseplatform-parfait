@@ -19,12 +19,10 @@ export function CourseCardItem({ course }: { course: CourseCard }) {
           </Link>
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">{course.instructor}</p>
-        <div className="mt-auto flex flex-wrap items-end justify-between gap-x-3 gap-y-1 pt-3 text-sm">
-          <p className="text-muted-foreground">
-            {levelLabels[course.level]}, {plural(course.lessonCount, 'lesson')}, {formatDuration(course.totalMinutes)}
-          </p>
-          <p className={course.price === 0 ? 'font-heading font-bold text-leaf' : 'font-heading font-bold'}>{formatPrice(course.price)}</p>
-        </div>
+        <p className="mt-auto pt-3 text-sm text-muted-foreground">
+          {levelLabels[course.level]}, {plural(course.lessonCount, 'lesson')}, {formatDuration(course.totalMinutes)}
+        </p>
+        <p className={course.price === 0 ? 'mt-1 font-heading font-bold text-leaf' : 'mt-1 font-heading font-bold'}>{formatPrice(course.price)}</p>
       </div>
     </article>
   )

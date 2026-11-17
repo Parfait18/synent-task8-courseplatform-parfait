@@ -64,8 +64,8 @@ export function CatalogPage() {
       <h1 className="text-[2rem] font-bold sm:text-[2.75rem]">Courses</h1>
       <p className="mt-2 max-w-xl text-graphite">Every course is a sequence of short video lessons. Search by title or narrow the list by subject, level and price.</p>
 
-      <form role="search" className="mt-8 grid gap-4 rounded-2xl border border-line bg-white p-4 sm:p-5 lg:grid-cols-[2fr_repeat(4,1fr)]" onSubmit={(event) => event.preventDefault()}>
-        <div className="space-y-1.5">
+      <form role="search" className="mt-8 grid grid-cols-2 gap-3 rounded-2xl border border-line bg-white p-4 sm:gap-4 sm:p-5 lg:grid-cols-[2fr_repeat(4,1fr)]" onSubmit={(event) => event.preventDefault()}>
+        <div className="col-span-2 space-y-1.5 lg:col-span-1">
           <Label htmlFor="catalog-search" className="text-sm font-semibold">Search</Label>
           <div className="relative">
             <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-graphite" />
@@ -73,7 +73,7 @@ export function CatalogPage() {
           </div>
         </div>
         {(Object.keys(filterOptions) as FilterKey[]).map((key) => (
-          <div key={key} className="space-y-1.5">
+          <div key={key} className="min-w-0 space-y-1.5">
             <Label htmlFor={`filter-${key}`} className="text-sm font-semibold">{filterLabels[key]}</Label>
             <Select value={params.get(key) ?? (key === 'sort' ? 'newest' : ALL)} onValueChange={(value) => update({ [key]: key === 'sort' && value === 'newest' ? undefined : value })}>
               <SelectTrigger id={`filter-${key}`} className="h-10! w-full bg-white text-base">

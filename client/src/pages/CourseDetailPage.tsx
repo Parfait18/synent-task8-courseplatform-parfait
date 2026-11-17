@@ -100,8 +100,9 @@ export function CourseDetailPage() {
         <Link to={`/courses?category=${course.category}`} className="underline-offset-4 hover:underline">{categoryLabels[course.category]}</Link>
       </nav>
       <div className="grid gap-10 md:grid-cols-[17rem_1fr] lg:grid-cols-[19rem_1fr_19rem]">
-        <div className="mx-auto w-48 md:w-full">
-          <div className="md:sticky md:top-24">
+        <div className="w-40 md:w-full">
+          <CourseCover className="md:hidden" title={course.title} category={course.category} level={course.level} lessonCount={course.lessonCount} />
+          <div className="hidden md:sticky md:top-24 md:block">
             <CourseCover title={course.title} category={course.category} level={course.level} lessonCount={course.lessonCount} size="lg" />
           </div>
         </div>

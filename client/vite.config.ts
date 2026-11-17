@@ -16,6 +16,20 @@ export default defineConfig({
     proxy: { '/api': { target: 'http://localhost:4100', changeOrigin: false } },
   },
   preview: { port: 5175, strictPort: true },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Long-lived vendor chunks cache well across deployments of the app code.
+        codeSplitting: {
+          groups: [
+            { name: 'react', test: /node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/ },
+            { name: 'ui', test: /node_modules[\\/](radix-ui|@radix-ui|lucide-react|sonner|cn|class-variance-authority)[\\/]/ },
+            { name: 'vendor', test: /node_modules[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

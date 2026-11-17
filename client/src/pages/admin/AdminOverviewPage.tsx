@@ -21,7 +21,7 @@ export function AdminOverviewPage() {
   return (
     <>
       <AdminPageHeader title="Overview" description="Totals since launch. Revenue counts verified payments only." />
-      <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {isPending
           ? [0, 1, 2, 3].map((index) => <Skeleton key={index} className="h-24 rounded-lg" />)
           : tiles.map((tile) => (

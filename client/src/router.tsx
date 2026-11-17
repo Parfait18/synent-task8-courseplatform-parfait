@@ -1,6 +1,5 @@
-import { createBrowserRouter } from 'react-router'
+import { createBrowserRouter, Outlet } from 'react-router'
 import { AdminRoute, GuestOnly, RequireAuth } from '@/auth/guards'
-import { AdminLayout } from '@/layouts/AdminLayout'
 import { LearnerLayout } from '@/layouts/LearnerLayout'
 import { CatalogPage } from '@/pages/CatalogPage'
 import { CheckoutPage } from '@/pages/CheckoutPage'
@@ -9,12 +8,6 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { HomePage } from '@/pages/HomePage'
 import { LearnPage } from '@/pages/LearnPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { AdminCourseEditorPage } from '@/pages/admin/AdminCourseEditorPage'
-import { AdminCoursesPage } from '@/pages/admin/AdminCoursesPage'
-import { AdminEnrollmentsPage } from '@/pages/admin/AdminEnrollmentsPage'
-import { AdminOverviewPage } from '@/pages/admin/AdminOverviewPage'
-import { AdminPaymentsPage } from '@/pages/admin/AdminPaymentsPage'
-import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
@@ -41,14 +34,20 @@ export const router = createBrowserRouter([
   },
   {
     path: '/admin',
-    element: <AdminRoute><AdminLayout /></AdminRoute>,
+    element: <AdminRoute><Outlet /></AdminRoute>,
+    // The admin panel is loaded on demand, so learners never download it.
     children: [
-      { index: true, element: <AdminOverviewPage /> },
-      { path: 'courses', element: <AdminCoursesPage /> },
-      { path: 'courses/:id', element: <AdminCourseEditorPage /> },
-      { path: 'users', element: <AdminUsersPage /> },
-      { path: 'enrollments', element: <AdminEnrollmentsPage /> },
-      { path: 'payments', element: <AdminPaymentsPage /> },
+      {
+        lazy: async () => ({ Component: (await import('@/layouts/AdminLayout')).AdminLayout }),
+        children: [
+          { index: true, lazy: async () => ({ Component: (await import('@/pages/admin/AdminOverviewPage')).AdminOverviewPage }) },
+          { path: 'courses', lazy: async () => ({ Component: (await import('@/pages/admin/AdminCoursesPage')).AdminCoursesPage }) },
+          { path: 'courses/:id', lazy: async () => ({ Component: (await import('@/pages/admin/AdminCourseEditorPage')).AdminCourseEditorPage }) },
+          { path: 'users', lazy: async () => ({ Component: (await import('@/pages/admin/AdminUsersPage')).AdminUsersPage }) },
+          { path: 'enrollments', lazy: async () => ({ Component: (await import('@/pages/admin/AdminEnrollmentsPage')).AdminEnrollmentsPage }) },
+          { path: 'payments', lazy: async () => ({ Component: (await import('@/pages/admin/AdminPaymentsPage')).AdminPaymentsPage }) },
+        ],
+      },
     ],
   },
 ])
